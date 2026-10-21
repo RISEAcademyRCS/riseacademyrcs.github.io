@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RISE Live</title>
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders+Display:wght@600;700;800;900&display=swap">
 <style>
 /* Layout: a fixed 1920x1080 broadcast stage (clock rail, rotating hero, news crawl) scaled to any screen, plus a slide-in editor drawer for the front office. */
@@ -162,6 +163,21 @@ body.awake .hud{opacity:1;pointer-events:auto}
 .hb.pri{background:var(--gold);color:#140A03;border-color:var(--gold)}
 .hb:focus-visible,.btn:focus-visible,.etab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
+.wx{margin-top:24px;display:flex;align-items:center;gap:18px;min-height:64px}
+.wx svg{width:64px;height:64px;flex:0 0 auto}
+.wx b{font:800 64px/1 var(--display);font-variant-numeric:tabular-nums}
+.wx span{font:500 20px/1.3 var(--body);color:var(--smoke)}
+.ycd{margin-top:22px;display:flex;align-items:center;gap:16px;padding:12px 18px;border:1px solid var(--line);background:rgba(245,180,0,.07)}
+.ycd b{font:900 66px/.9 var(--display);color:var(--gold);font-variant-numeric:tabular-nums}
+.ycd span{font:700 16px/1.3 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--ash)}
+body.locked .facts,body.locked .chips,body.locked .sync,body.locked .wx,body.locked .ycd{visibility:hidden}
+.lockform{position:fixed;z-index:55;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(560px,calc(100% - 32px));display:none;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;border:1px solid var(--edge);border-radius:10px;background:rgba(22,17,12,.95);opacity:0;transition:opacity .3s}
+body.locked .lockform{display:flex}
+body.locked.awake .lockform,.lockform:focus-within{opacity:1}
+.lockform label{width:100%;font:700 12px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--smoke)}
+.lockform input{flex:1 1 220px;min-width:0;background:#1D1711;color:var(--ash);border:1px solid var(--edge);border-radius:7px;padding:10px 12px;font:500 15px var(--body)}
+.lockform input:focus{outline:2px solid var(--gold)}
+#lockmsg{width:100%;font:500 13px var(--body);color:var(--smoke)}
 .live.stale i{background:var(--smoke);animation:none}
 .live.stale{color:var(--smoke)}
 .sync{margin-top:8px;font:500 15px var(--body);color:var(--smoke);letter-spacing:.04em}
@@ -189,9 +205,6 @@ a.hb{text-decoration:none;display:inline-block}
 <script>
 (function(){
 "use strict";
-/* ===== SETUP: paste the Google Sheet link between the quotes ===== */
-var SHEET_LINK='https://docs.google.com/spreadsheets/d/1hr1RTA36zfE6NVcpVPVtvCLHGrZtqmpO5rdBuUHihhU/edit?gid=720003848#gid=720003848';
-/* ================================================================ */
 var RM=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -219,7 +232,7 @@ function hash(s){var h=5381;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(
 /* ---------- data ---------- */
 function normalize(d){
   d=d||{};
-  d.settings=Object.assign({welcome:'Welcome to RISE Academy',seconds:12,autoTicker:true,segments:{}},d.settings||{});
+  d.settings=Object.assign({welcome:'Welcome to RISE Academy',seconds:12,autoTicker:true,lastDay:'2027-05-27',segments:{}},d.settings||{});
   d.settings.segments=Object.assign({welcome:true,creed:true,houses:true,sports:true,lunch:true,ann:true,shout:true,count:true},d.settings.segments||{});
   ['messages','houses','games','lunch','announcements','shoutouts','countdowns','ticker'].forEach(function(k){if(!Array.isArray(d[k]))d[k]=[]});
   d.creed=Object.assign({title:'',author:'',lines:[]},d.creed||{});
@@ -251,89 +264,87 @@ function shoutsFor(t){return S.shoutouts.filter(function(s){return s.name&&(!s.d
 function nextCountdowns(now){var t=ymd(now);return S.countdowns.filter(function(c){return c.label&&c.date&&c.date>t}).sort(function(a,b){return a.date<b.date?-1:1})}
 function rankedHouses(){return S.houses.filter(function(h){return h.name}).slice().sort(function(a,b){return num(b.points)-num(a.points)})}
 
-/* ---------- Google Sheet connection ---------- */
-function sheetId(){
-  var q='';try{q=new URLSearchParams(location.search).get('sheet')||''}catch(e){}
-  var raw=q||SHEET_LINK||'';var m=String(raw).match(/\/d\/([a-zA-Z0-9_-]{20,})/);
-  return m?m[1]:(/^[a-zA-Z0-9_-]{20,}$/.test(raw.trim())?raw.trim():'');
+/* ---------- secure connection (no data, no Sheet, no service address in this file) ---------- */
+var LKEY='rise-live-screen',CKEY='rise-live-cache',SETUP_RE=/[#&]?s=([A-Za-z0-9_-]{20,})~([A-Za-z0-9]{48,})/;
+function storeConn(c){try{localStorage.setItem(LKEY,JSON.stringify(c))}catch(e){}}
+function readConn(){
+  var m=(location.hash||'').match(SETUP_RE);
+  if(m){var c={id:m[1],key:m[2]};storeConn(c);
+    try{history.replaceState(null,'',location.pathname+location.search)}catch(e){location.hash=''}
+    return c}
+  try{var c2=JSON.parse(localStorage.getItem(LKEY)||'null');return c2&&c2.id&&c2.key?c2:null}catch(e){return null}
 }
-var SID=sheetId(),CKEY='rise-live-cache-'+SID,lastSync=0,syncErr='';
-function parseCSV(t){
-  var rows=[],row=[],f='',q=false;
-  for(var i=0;i<t.length;i++){var c=t[i];
-    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
-    else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
-    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}
-    else f+=c}
-  if(f!==''||row.length){row.push(f);rows.push(row)}
-  return rows;
+var CONN=readConn(),locked=true,lastSync=0,WX=null,dataKey='';
+function forget(){CONN=null;try{localStorage.removeItem(LKEY);localStorage.removeItem(CKEY)}catch(e){}S=normalize({});WX=null;dataKey='';setLocked(true)}
+function setLocked(on){
+  var was=locked;locked=on;document.body.classList.toggle('locked',on);
+  if(on){$('#facts').innerHTML='';$('#tt').innerHTML='';tickerKey=''}
+  if(was!==on){renderFacts();renderTicker();renderWeather();renderYear();renderSync();tick(true)}
 }
-function table(csv){
-  var r=parseCSV(csv||'');if(!r.length)return [];
-  var h=r[0].map(function(x){return String(x).trim().toLowerCase()});
-  return r.slice(1).map(function(a){var o={};h.forEach(function(k,i){o[k]=String(a[i]==null?'':a[i]).trim()});return o})
-    .filter(function(o){return Object.keys(o).some(function(k){return o[k]!==''})});
-}
-function col(o){for(var i=1;i<arguments.length;i++){var n=arguments[i];for(var k in o){if(k===n||k.indexOf(n)===0)return o[k]}}return ''}
-function toYmd(v){v=String(v||'').trim();if(!v)return '';var m;
-  if((m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))return m[1]+'-'+pad(+m[2])+'-'+pad(+m[3]);
-  if((m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/))){var y=+m[3];if(y<100)y+=2000;return y+'-'+pad(+m[1])+'-'+pad(+m[2])}
-  if((m=v.match(/^Date\((\d+),(\d+),(\d+)/)))return m[1]+'-'+pad(+m[2]+1)+'-'+pad(+m[3]);
-  var d=new Date(v);return isNaN(d)?'':ymd(d)}
-function toHM(v){v=String(v||'').trim();if(!v)return '';var m=v.match(/(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*([ap])\.?\s*m?\.?/i)||v.match(/^(\d{1,2}):(\d{2})/);
-  if(!m)return '';var h=+m[1],mi=+(m[2]||0);if(m[3]){var pm=/p/i.test(m[3]);if(h===12)h=pm?12:0;else if(pm)h+=12}
-  return pad(h)+':'+pad(mi)}
-function yes(v){return /^(y|yes|true|on|1|x|✓)$/i.test(String(v||'').trim())}
-function imgUrl(v){v=String(v||'').trim();if(!v)return '';var m=v.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]+)/);
-  if(m)return 'https://drive.google.com/thumbnail?id='+m[1]+'&sz=w1600';return /^https:\/\//.test(v)?v:''}
-var TABNAMES=['Today','Lunch','Sports','Houses','Announcements','Shoutouts','Countdowns','Creed','Ticker','Settings'];
-function buildData(T){
-  var st={};(T.Settings||[]).forEach(function(r){var k=col(r,'setting');if(k)st[k.toLowerCase()]=col(r,'value')});
-  function setting(k,d){return st[k]!==undefined&&st[k]!==''?st[k]:d}
-  var segs={};[['welcome','show welcome'],['creed','show creed'],['houses','show house points'],['sports','show sports'],['lunch','show lunch'],['ann','show announcements'],['shout','show shoutouts'],['count','show countdowns']].forEach(function(p){var v=st[p[1]];segs[p[0]]=v===undefined||v===''?true:yes(v)});
-  return normalize({
-    settings:{welcome:setting('welcome headline','Welcome to RISE Academy'),seconds:num(setting('seconds per screen',12))||12,autoTicker:st['automatic ticker items']===undefined||st['automatic ticker items']===''?true:yes(st['automatic ticker items']),segments:segs},
-    housesUpdated:toYmd(setting('standings as of','')),
-    messages:(T.Today||[]).map(function(r){return {date:toYmd(col(r,'date')),text:col(r,'message')}}).filter(function(x){return x.text}),
-    lunch:(T.Lunch||[]).map(function(r){var it=[col(r,'main')];Object.keys(r).forEach(function(k){if(k.indexOf('side')===0)it.push(r[k])});return {date:toYmd(col(r,'date')),items:clean(it)}}).filter(function(x){return x.date&&x.items.length}),
-    games:(T.Sports||[]).map(function(r){return {date:toYmd(col(r,'date')),team:col(r,'team'),home:/home|vs/i.test(col(r,'home')),opponent:col(r,'opponent'),start:toHM(col(r,'start')),end:toHM(col(r,'end'))}}).filter(function(g){return g.date&&g.team}),
-    houses:(T.Houses||[]).map(function(r){var c=col(r,'color');if(c&&c[0]!=='#')c='#'+c;return {name:col(r,'house'),points:num(col(r,'points')),color:c}}).filter(function(h){return h.name}),
-    announcements:(T.Announcements||[]).map(function(r){return {title:col(r,'title'),body:col(r,'details'),start:toYmd(col(r,'show from')),end:toYmd(col(r,'show until')),image:imgUrl(col(r,'flyer'))}}).filter(function(a){return a.title||a.body}),
-    shoutouts:(T.Shoutouts||[]).map(function(r){return {kind:/birth/i.test(col(r,'type'))?'birthday':'shoutout',name:col(r,'name'),note:col(r,'note'),date:toYmd(col(r,'date'))}}).filter(function(s){return s.name}),
-    countdowns:(T.Countdowns||[]).map(function(r){return {label:col(r,'event'),date:toYmd(col(r,'date'))}}).filter(function(c){return c.label&&c.date}),
-    creed:{title:setting('creed title',''),author:setting('creed author',''),lines:(T.Creed||[]).map(function(r){return col(r,'line')}).filter(Boolean)},
-    ticker:(T.Ticker||[]).map(function(r){return col(r,'message')}).filter(Boolean)
-  });
-}
-function fetchTab(name){
-  var u='https://docs.google.com/spreadsheets/d/'+SID+'/gviz/tq?tqx=out:csv&headers=1&sheet='+encodeURIComponent(name)+'&_='+Date.now();
-  return fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
-    if(/^\s*</.test(t))throw new Error('not shared');return t});
-}
-var dataKey='';
-function applyData(d){var k=JSON.stringify(d);if(k===dataKey)return;dataKey=k;S=d;renderFacts();renderTicker();if(cur&&cur.key==='welcome'&&!SID)go(0)}
+function applyData(d){var k=JSON.stringify(d);if(k===dataKey)return;dataKey=k;S=d;renderFacts();renderTicker();renderYear();tick(true)}
 function sync(){
-  if(!SID){syncErr='setup';renderSync();return}
-  Promise.all(TABNAMES.map(function(n){return fetchTab(n).then(function(t){return [n,table(t),null]},function(e){return [n,[],e]})})).then(function(res){
-    var ok=res.filter(function(r){return !r[2]});
-    if(!ok.length){syncErr='Could not read the Google Sheet. Check that it is shared as “Anyone with the link can view”.';renderSync();return}
-    var T={};res.forEach(function(r){T[r[0]]=r[1]});
-    var d=buildData(T);lastSync=Date.now();syncErr='';
-    try{localStorage.setItem(CKEY,JSON.stringify({at:lastSync,data:d}))}catch(e){}
-    applyData(d);renderSync();
-  });
+  if(!CONN){setLocked(true);return}
+  var u='https://script.google.com/macros/s/'+CONN.id+'/exec?k='+encodeURIComponent(CONN.key)+'&_='+Date.now();
+  fetch(u,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}).then(function(r){return r.json()}).then(function(j){
+    if(j&&j.ok===false){forget();return}
+    if(!j||j.ok!==true)return;
+    lastSync=Date.now();WX=j.weather||null;var d=normalize(j.data||{});
+    try{localStorage.setItem(CKEY,JSON.stringify({at:lastSync,data:d,weather:WX}))}catch(e){}
+    setLocked(false);applyData(d);renderWeather();renderSync();
+  }).catch(function(){renderSync()});
 }
 function renderSync(){
   var el=$('#sync');if(!el)return;
   var fresh=lastSync&&Date.now()-lastSync<5*6e4;
   $('.live').classList.toggle('stale',!fresh);
-  el.textContent=!SID?'Not connected':fresh?'Updated '+fmtClock(new Date(lastSync)):lastSync?'Offline · last update '+fmtClock(new Date(lastSync)):'Connecting…';
+  el.textContent=locked?'':fresh?'Updated '+fmtClock(new Date(lastSync)):lastSync?'Offline · last update '+fmtClock(new Date(lastSync)):'Connecting…';
 }
 function fmtClock(d){var h=d.getHours()%12||12;return h+':'+pad(d.getMinutes())+' '+(d.getHours()>=12?'PM':'AM')}
-(function loadCache(){try{var c=JSON.parse(localStorage.getItem(CKEY)||'null');if(c&&c.data){S=normalize(c.data);lastSync=c.at||0;dataKey=JSON.stringify(S)}}catch(e){}})();
+function loadCache(){
+  if(!CONN){try{localStorage.removeItem(CKEY)}catch(e){}return}
+  try{var c=JSON.parse(localStorage.getItem(CKEY)||'null');if(c&&c.data){S=normalize(c.data);WX=c.weather||null;lastSync=c.at||0;dataKey=JSON.stringify(S);locked=false}}catch(e){}
+}
+
+/* ---------- weather ---------- */
+var WXI={
+ sun:'<circle cx="32" cy="32" r="12" fill="#F5B400"/><g stroke="#F5B400" stroke-width="4" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M13.6 50.4l5-5M45.4 18.6l5-5"/></g>',
+ moon:'<path d="M40 8a24 24 0 1 0 16 38A20 20 0 0 1 40 8z" fill="#F4EEE5"/>',
+ cloud:'<path d="M18 50h30a11 11 0 0 0 0-22 15 15 0 0 0-29-3A12.5 12.5 0 0 0 18 50z" fill="#F4EEE5"/>',
+ partly:'<circle cx="24" cy="22" r="10" fill="#F5B400"/><g stroke="#F5B400" stroke-width="3.5" stroke-linecap="round"><path d="M24 4v5M6 22h5M11 9l3.5 3.5M37 9l-3.5 3.5"/></g><path d="M20 54h28a10 10 0 0 0 0-20 14 14 0 0 0-27-3A11.5 11.5 0 0 0 20 54z" fill="#F4EEE5"/>',
+ rain:'<path d="M18 40h30a11 11 0 0 0 0-22 15 15 0 0 0-29-3A12.5 12.5 0 0 0 18 40z" fill="#F4EEE5"/><g stroke="#5AB4FF" stroke-width="4" stroke-linecap="round"><path d="M22 47l-3 8M34 47l-3 8M46 47l-3 8"/></g>',
+ snow:'<path d="M18 40h30a11 11 0 0 0 0-22 15 15 0 0 0-29-3A12.5 12.5 0 0 0 18 40z" fill="#F4EEE5"/><g fill="#CFE8FF"><circle cx="21" cy="50" r="3.5"/><circle cx="33" cy="54" r="3.5"/><circle cx="45" cy="50" r="3.5"/></g>',
+ storm:'<path d="M18 40h30a11 11 0 0 0 0-22 15 15 0 0 0-29-3A12.5 12.5 0 0 0 18 40z" fill="#F4EEE5"/><path d="M34 40l-8 12h7l-4 10 12-15h-7l4-7z" fill="#F5B400"/>',
+ fog:'<g stroke="#F4EEE5" stroke-width="5" stroke-linecap="round"><path d="M10 24h44M16 34h38M10 44h40"/></g>'
+};
+function wxKind(c,day){
+  if(c===0)return [day?'sun':'moon',day?'Sunny':'Clear'];
+  if(c===1)return [day?'partly':'moon',day?'Mostly sunny':'Mostly clear'];
+  if(c===2)return ['partly','Partly cloudy'];
+  if(c===3)return ['cloud','Cloudy'];
+  if(c===45||c===48)return ['fog','Fog'];
+  if(c>=51&&c<=57)return ['rain','Drizzle'];
+  if((c>=61&&c<=67)||(c>=80&&c<=82))return ['rain',c>=80?'Showers':'Rain'];
+  if((c>=71&&c<=77)||c===85||c===86)return ['snow','Snow'];
+  if(c>=95)return ['storm','Thunderstorms'];
+  return ['cloud','Cloudy'];
+}
+function renderWeather(){
+  var el=$('#wx');if(!el)return;
+  if(locked||!WX||typeof WX.temp!=='number'){el.innerHTML='';return}
+  var k=wxKind(WX.code,WX.day);
+  el.innerHTML='<svg viewBox="0 0 64 64" aria-hidden="true">'+WXI[k[0]]+'</svg><b>'+WX.temp+'°F</b><span>'+esc(k[1])+'<br>H '+WX.hi+'° · L '+WX.lo+'°</span>';
+}
+function renderYear(){
+  var el=$('#ycd');if(!el)return;
+  var d=locked?null:pday(S.settings.lastDay),n=d?daysUntil(S.settings.lastDay):-1;
+  if(n<0||isNaN(n)){el.hidden=true;return}
+  el.hidden=false;
+  el.innerHTML=n===0?'<b>0</b><span>Last day<br>of school!</span>':'<b>'+n+'</b><span>day'+(n===1?'':'s')+' until the<br>last day of school</span>';
+}
 
 /* ---------- playlist ---------- */
 function playlist(now){
+  if(locked)return [{key:'lock',label:'RISE Live',word:'RISE',dur:3600,render:rLock}];
   var on=S.settings.segments,base=Math.max(5,num(S.settings.seconds)||12),t=ymd(now),out=[];
   if(on.welcome)out.push({key:'welcome',label:'Welcome',word:'RISE',dur:base,render:rWelcome});
   var cl=S.creed.lines.filter(function(x){return String(x).trim()});
@@ -350,8 +361,10 @@ function playlist(now){
 /* ---------- segment renderers ---------- */
 function stag(el){$$('.k',el).forEach(function(n,i){n.style.setProperty('--i',i)})}
 function greet(now){var h=now.getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening'}
+function rLock(el){
+  el.innerHTML='<div class="kick k">RISE Live</div><h1 class="h1" style="font-size:140px">'+split('Screen not activated')+'</h1><div class="msg k" style="font-size:38px">Open this screen’s setup link to activate it.</div>';
+}
 function rWelcome(el){
-  if(!SID){el.innerHTML='<div class="kick k">Setup</div><h1 class="h1" style="font-size:130px">'+split('Connect the Google Sheet')+'</h1><div class="msg k" style="font-size:38px">Paste the Sheet link into SHEET_LINK at the top of the page script, or add ?sheet= and the Sheet ID to this page’s address.</div>';return}
   var now=new Date(),m=todayMsg(ymd(now));
   el.innerHTML='<div class="kick k">'+greet(now)+', RISE</div>'+
     '<h1 class="h1">'+split(S.settings.welcome||'Welcome to RISE Academy')+'</h1>'+
@@ -442,12 +455,15 @@ app.innerHTML=
   '<canvas id="embers" width="960" height="540"></canvas>'+
   '<aside class="rail"><div class="brand"><div class="logo" role="img" aria-label="RISE Academy logo"></div><div><div class="nm">RISE<br>Academy</div><div class="live"><i></i>LIVE</div><div class="sync" id="sync">Connecting…</div></div></div>'+
    '<div class="clock"><span id="hm">--:--</span><div class="side"><span class="sec" id="ss">00</span><span class="ap" id="ap">AM</span></div></div>'+
+   '<div class="wx" id="wx"></div>'+
    '<div class="dayname" id="dn"></div><div class="datestr" id="ds"></div>'+
+   '<div class="ycd" id="ycd" hidden></div>'+
    '<div class="facts" id="facts"></div></aside>'+
   '<section class="main"><div class="bgword" id="bgw">RISE</div><div class="segwrap" id="segs"></div><div class="paused" id="pz" hidden>Paused</div><div class="chips" id="chips"></div><div class="wipe" id="wipe"></div></section>'+
   '<div class="ticker"><div class="tlabel">RISE NEWS</div><div class="tview"><div class="ttrack" id="tt"></div></div></div>'+
  '</div>'+
- '<nav class="hud" aria-label="Screen controls"><button class="hb" id="bPrev" title="Previous (←)">◀</button><button class="hb" id="bPause" title="Pause (Space)">Pause</button><button class="hb" id="bNext" title="Next (→)">▶</button><button class="hb" id="bFull" title="Fullscreen (F)">Fullscreen</button>'+(SID?'<a class="hb pri" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/'+SID+'/edit">Edit in Google Sheets</a>':'')+'</nav>';
+ '<nav class="hud" aria-label="Screen controls"><button class="hb" id="bPrev" title="Previous (←)">◀</button><button class="hb" id="bPause" title="Pause (Space)">Pause</button><button class="hb" id="bNext" title="Next (→)">▶</button><button class="hb" id="bFull" title="Fullscreen (F)">Fullscreen</button></nav>'+
+ '<form class="lockform" id="lockform" autocomplete="off"><label for="setupIn">Setup link</label><input id="setupIn" type="password" placeholder="Paste this screen’s setup link" spellcheck="false"><button class="hb pri" type="submit">Activate</button><span id="lockmsg" role="status"></span></form>';
 
 var stage=$('#stage'),segs=$('#segs');
 function fit(){
@@ -467,12 +483,13 @@ function renderFacts(){
   if(l)f.push(['Lunch'+(l.when==='Today'?'':' · '+l.when.slice(0,3)),l.items[0]+(l.items.length>1?' + '+(l.items.length-1)+' more':'')]);
   if(g)f.push(['Next game',g.team+' '+(g.home?'vs ':'@ ')+(g.opponent||'TBA')+' · '+(g.date===t?'':DAYS[pday(g.date).getDay()].slice(0,3)+' ')+fmtTime(g.start)]);
   if(hs.length)f.push(['Leading',hs[0].name+' · '+fmtNum(num(hs[0].points))]);
-  if(c)f.push(['Coming up',c.label+' in '+daysUntil(c.date)+' day'+(daysUntil(c.date)===1?'':'s')]);
+  if(locked)f=[];
   $('#facts').innerHTML=f.length?'<h4>Today at RISE</h4>'+f.map(function(x){return '<div class="fact"><div class="l">'+esc(x[0])+'</div><div class="v">'+esc(x[1])+'</div></div>'}).join(''):'';
 }
 var tickerKey='';
 var tickerTimer=null;
 function renderTicker(){
+  if(locked){$('#tt').innerHTML='';tickerKey='';return}
   var now=new Date(),t=ymd(now),items=S.ticker.filter(function(x){return String(x).trim()}).map(esc);
   if(S.settings.autoTicker){
     upcomingGames(now).filter(function(g){return g.date===t}).forEach(function(g){items.push('<b>Today:</b> '+esc(g.team)+' '+(g.home?'vs ':'@ ')+esc(g.opponent||'TBA')+', '+fmtTime(g.start))});
@@ -491,11 +508,11 @@ function renderTicker(){
   requestAnimationFrame(function(){var w=tt.scrollWidth/2;tt.style.animationDuration=Math.max(20,w/130)+'s'});
 }
 
-/* ---------- player ---------- */
-var list=[],idx=-1,segStart=0,segDur=12000,paused=false,pauseLeft=0,cur=null,swapT=null;
+/* ---------- player (every screen follows the wall clock, so all screens stay in step) ---------- */
+var list=[],idx=-1,curStart=0,segDur=12000,paused=false,pausedAt=0,offset=0,offT=null,cur=null,swapT=null;
 function renderChips(){
   var keys=[],labels={};list.forEach(function(s){if(keys.indexOf(s.key)<0){keys.push(s.key);labels[s.key]=s.label}});
-  $('#chips').innerHTML=keys.map(function(k){return '<div class="chip'+(cur&&cur.key===k?' on':'')+'" data-k="'+k+'"><div class="fill"></div>'+esc(labels[k])+'</div>'}).join('');
+  $('#chips').innerHTML=locked?'':keys.map(function(k){return '<div class="chip'+(cur&&cur.key===k?' on':'')+'" data-k="'+k+'"><div class="fill"></div>'+esc(labels[k])+'</div>'}).join('');
 }
 function show(seg,instant){
   cur=seg;
@@ -509,19 +526,30 @@ function show(seg,instant){
     stag(el);segs.appendChild(el);void el.offsetWidth;el.classList.add('in');
     $('#bgw').textContent=seg.word||'RISE';
   },instant||RM?0:300);
-  segStart=performance.now();segDur=seg.dur*1000;
   renderChips();
 }
-function go(dir){
-  var prev=cur;list=playlist(new Date());if(!list.length)return;
-  if(prev){var pi=list.findIndex(function(s){return s.key===prev.key&&(s.sub||0)===(prev.sub||0)});idx=pi>=0?pi:Math.min(idx,list.length-1)}
-  idx=((idx+dir)%list.length+list.length)%list.length;show(list[idx]);
+function slot(now){
+  list=playlist(new Date(now));if(!list.length)return null;
+  var total=0;list.forEach(function(s){total+=Math.round(s.dur*1000)});
+  var t=((now+offset)%total+total)%total,acc=0;
+  for(var i=0;i<list.length;i++){var d=Math.round(list[i].dur*1000);if(t<acc+d)return {i:i,start:now-(t-acc),dur:d};acc+=d}
+  return {i:0,start:now,dur:Math.round(list[0].dur*1000)};
 }
-function showKey(key){list=playlist(new Date());var i=list.findIndex(function(s){return s.key===key});if(i>=0){idx=i;show(list[i],true);return true}return false}
-function setPaused(p){paused=p;$('#pz').hidden=!p;$('#bPause').textContent=p?'Play':'Pause';if(!p)segStart=performance.now()-(segDur-pauseLeft);else pauseLeft=Math.max(0,segDur-(performance.now()-segStart))}
-function frame(ts){
-  if(!paused&&cur&&ts-segStart>=segDur)go(1);
-  if(cur){var p=paused?1-pauseLeft/segDur:Math.min(1,(ts-segStart)/segDur);var f=$('#chips .chip.on .fill');if(f)f.style.width=(p*100).toFixed(2)+'%'}
+function tick(force){
+  if(paused&&!force)return;
+  var now=Date.now(),s=slot(now);if(!s)return;
+  var seg=list[s.i];curStart=s.start;segDur=s.dur;
+  if(force||!cur||cur.key!==seg.key||(cur.sub||0)!==(seg.sub||0)){idx=s.i;show(seg,!cur)}
+}
+function go(dir){
+  if(!cur)return;var now=Date.now(),el=now-curStart;
+  if(dir>0)offset+=segDur-el+5;else{var p=list[(idx-1+list.length)%list.length];offset-=el+(p?Math.round(p.dur*1000):0)-5}
+  clearTimeout(offT);offT=setTimeout(function(){offset=0;tick()},120000);
+  if(paused)setPaused(false);else tick();
+}
+function setPaused(p){paused=p;$('#pz').hidden=!p;$('#bPause').textContent=p?'Play':'Pause';if(p)pausedAt=Date.now();else{offset=0;tick()}}
+function frame(){
+  if(cur&&!locked){var p=((paused?pausedAt:Date.now())-curStart)/segDur;var f=$('#chips .chip.on .fill');if(f)f.style.width=(Math.max(0,Math.min(1,p))*100).toFixed(2)+'%'}
   requestAnimationFrame(frame);
 }
 
@@ -552,13 +580,24 @@ addEventListener('keydown',function(e){
   else if(e.key==='f'||e.key==='F')full();
 });
 
+/* ---------- lock form ---------- */
+$('#lockform').addEventListener('submit',function(e){
+  e.preventDefault();var v=$('#setupIn').value.trim(),m=v.match(SETUP_RE);
+  if(!m){$('#lockmsg').textContent='That is not a valid setup link.';return}
+  CONN={id:m[1],key:m[2]};storeConn(CONN);$('#setupIn').value='';$('#lockmsg').textContent='Checking…';sync();
+});
+
 /* ---------- boot ---------- */
-tickClock();renderFacts();renderTicker();
-list=playlist(new Date());idx=0;if(list.length)show(list[0],true);
+loadCache();
+document.body.classList.toggle('locked',locked);
+tickClock();renderFacts();renderTicker();renderWeather();renderYear();renderSync();
+tick(true);
 requestAnimationFrame(frame);
+setInterval(function(){tick()},250);
 setInterval(function(){tickClock();updateLive()},1000);
-setInterval(function(){renderFacts();renderTicker();renderSync();var l=playlist(new Date());if(l.length!==list.length){list=l;renderChips()}},30000);
-sync();setInterval(sync,60000);renderSync();
+setInterval(function(){renderFacts();renderTicker();renderYear();renderSync()},30000);
+sync();setInterval(sync,60000);
+addEventListener('hashchange',function(){if(SETUP_RE.test(location.hash)){CONN=readConn();sync()}});
 })();
 </script>
 </body>
