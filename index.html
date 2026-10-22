@@ -26,10 +26,10 @@ body:not(.awake){cursor:none}
 #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--ink)}
 #stage{position:relative;flex:0 0 auto;width:1920px;height:1080px;zoom:.5;overflow:hidden;
   background:radial-gradient(1300px 640px at 78% 118%,rgba(255,106,26,.26),transparent 62%),radial-gradient(900px 520px at 6% -12%,rgba(245,180,0,.12),transparent 60%),var(--ink)}
-#embers{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none}
+#embers{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
 
 /* rail */
-.rail{position:absolute;left:0;top:0;width:560px;height:984px;padding:52px 56px 40px;overflow:hidden;display:flex;flex-direction:column;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(22,17,12,.9),rgba(11,8,6,.35))}
+.rail{position:absolute;left:0;top:0;bottom:96px;width:560px;padding:52px 56px 40px;overflow:hidden;display:flex;flex-direction:column;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(22,17,12,.9),rgba(11,8,6,.35))}
 .brand{display:flex;align-items:center;gap:22px}
 .brand .logo{width:104px;height:104px;flex:0 0 auto;background:var(--logo) center/contain no-repeat;filter:drop-shadow(0 0 26px rgba(255,106,26,.4))}
 .brand .nm{font:800 48px/.92 var(--display);letter-spacing:.04em;text-transform:uppercase}
@@ -48,7 +48,7 @@ body:not(.awake){cursor:none}
 .fact .v{font:500 23px/1.2 var(--body);color:var(--ash)}
 
 /* main stage */
-.main{position:absolute;left:560px;top:0;width:1360px;height:984px;overflow:hidden}
+.main{position:absolute;left:560px;top:0;right:0;bottom:96px;overflow:hidden}
 .bgword{position:absolute;right:-30px;bottom:30px;font:900 460px/.8 var(--display);color:transparent;-webkit-text-stroke:2px rgba(245,180,0,.09);white-space:nowrap;text-transform:uppercase;pointer-events:none;animation:drift 26s ease-in-out infinite alternate}
 .segwrap{position:absolute;left:96px;right:96px;top:84px;bottom:118px}
 .seg{position:absolute;inset:0;display:flex;flex-direction:column}
@@ -498,7 +498,11 @@ app.innerHTML=
 var stage=$('#stage'),segs=$('#segs');
 function fit(){
   // zoom (not transform) makes the browser draw text and shapes at the TV's real resolution, so 4K stays sharp
-  var s=Math.min(innerWidth/1920,innerHeight/1080);
+  // The stage keeps 1080 design-pixels of height (or 1920 of width) and grows the other way,
+  // so it fills any screen shape with no bars on the sides or top.
+  var a=innerWidth/innerHeight,W=Math.max(1920,Math.round(1080*a)),H=Math.max(1080,Math.round(1920/a));
+  stage.style.width=W+'px';stage.style.height=H+'px';
+  var s=Math.min(innerWidth/W,innerHeight/H);
   if('zoom' in document.documentElement.style){stage.style.zoom=s;stage.style.transform=''}
   else{stage.style.zoom='';stage.style.transform='scale('+s+')';stage.style.transformOrigin='center'}
 }
