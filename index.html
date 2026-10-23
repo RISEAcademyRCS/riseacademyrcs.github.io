@@ -354,15 +354,17 @@ function lunchFor(now){
 /* private pictures: fetched once per page load from the service, kept in memory only */
 var IMGS={};
 function imageSrc(ref){
-  if(!ref)return null;if(/^https:\/\//.test(ref))return ref;var m=String(ref).match(/^drive:([\w-]+)$/);if(!m||!CONN)return null;
+  if(!ref)return null;var th=String(ref).match(/drive\.google\.com\/thumbnail\?id=([\w-]+)/);if(th)ref='drive:'+th[1];
+  if(/^https:\/\//.test(ref))return ref;var m=String(ref).match(/^drive:([\w-]+)$/);if(!m||!CONN)return null;
   var e=IMGS[m[1]];if(!e||(e.st==='err'&&Date.now()-e.at>300000)){loadImg(m[1]);return null}return e.st==='ok'?e.url:null;
 }
 function loadImg(id){
   IMGS[id]={st:'l'};
   fetch('https://script.google.com/macros/s/'+CONN.id+'/exec?k='+encodeURIComponent(CONN.key)+'&img='+encodeURIComponent(id),{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'})
-   .then(function(r){return r.json()}).then(function(j){IMGS[id]=j&&j.ok===true&&/^image\//.test(j.type)?{st:'ok',url:'data:'+j.type+';base64,'+j.data}:{st:'err',at:Date.now()}})
-   .catch(function(){IMGS[id]={st:'err',at:Date.now()}});
+   .then(function(r){return r.json()}).then(function(j){IMGS[id]=j&&j.ok===true&&/^image\//.test(j.type)?{st:'ok',url:'data:'+j.type+';base64,'+j.data}:{st:'err',at:Date.now(),why:(j&&j.error)||(j&&j.ok===false?'screen key rejected':'the service did not return a picture (is the new Code.gs deployed?)')};showRes()})
+   .catch(function(){IMGS[id]={st:'err',at:Date.now(),why:'could not reach the service'};showRes()});
 }
+function imgFailed(ref){var m=String(ref||'').match(/(?:^drive:|thumbnail\?id=)([\w-]+)/);return !!(m&&IMGS[m[1]]&&IMGS[m[1]].st==='err')}
 function activeSpots(t){return S.spotlight.filter(function(s){return s.name&&(!s.start||s.start<=t)&&(!s.end||s.end>=t)})}
 function rSpot(el,s){el.innerHTML='<div class="kick k">'+esc(s.title||'Spotlight')+'</div><h1 class="h1">'+split(s.name)+'</h1>'+(s.note?'<div class="msg k">'+esc(s.note)+'</div>':'')}
 function activeAnns(t){return S.announcements.filter(function(a){return (a.title||a.body||a.image)&&(!a.start||a.start<=t)&&(!a.end||a.end>=t)})}
@@ -471,7 +473,7 @@ function playlist(now){
   })}
   if(on.spot)activeSpots(t).forEach(function(s,i){var src=imageSrc(s.photo);
     if(src)out.push({key:'spot',sub:i,overlay:true,label:'Spotlight',word:'PROUD',dur:15,render:function(el){el.innerHTML='';Showcase.start({src:src,kicker:s.title||'Spotlight',title:s.name,note:s.note,spotlight:true})}});
-    else if(!s.photo)out.push({key:'spot',sub:i,label:'Spotlight',word:'PROUD',dur:base,render:function(el){rSpot(el,s)}});
+    else if(!s.photo||imgFailed(s.photo))out.push({key:'spot',sub:i,label:'Spotlight',word:'PROUD',dur:base,render:function(el){rSpot(el,s)}});
   });
   if(on.shout&&shoutsFor(t).length)out.push({key:'shout',label:'Shoutouts',word:'SHOUT',dur:base+2,render:rShout});
   if(on.count&&nextCountdowns(now).length)out.push({key:'count',label:'Countdown',word:'SOON',dur:base,render:rCount});
@@ -911,7 +913,8 @@ function fit(){
   if('zoom' in document.documentElement.style){stage.style.zoom=s;stage.style.transform=''}
   else{stage.style.zoom='';stage.style.transform='scale('+s+')';stage.style.transformOrigin='center'}
 }
-function showRes(){var r=$('#res'),d=window.devicePixelRatio||1;if(r)r.textContent='Drawing at '+Math.round(innerWidth*d)+'×'+Math.round(innerHeight*d)}
+function showRes(){var r=$('#res'),d=window.devicePixelRatio||1;if(!r)return;var ok=0,bad=[];for(var k in IMGS){if(IMGS[k].st==='ok')ok++;else if(IMGS[k].st==='err')bad.push(IMGS[k].why)}
+  r.textContent='Drawing at '+Math.round(innerWidth*d)+'×'+Math.round(innerHeight*d)+((ok||bad.length)?' · Pictures: '+ok+' ok'+(bad.length?', '+bad.length+' failed ('+bad[0]+')':''):'')}
 addEventListener('resize',function(){fit();showRes()});fit();showRes();
 
 function tickClock(){
