@@ -200,7 +200,7 @@ a.hb{text-decoration:none;display:inline-block}
 
 /* friday champion overlay */
 #champ{position:absolute;top:0;right:0;bottom:0;left:0;z-index:40;background:#000;overflow:hidden}
-#champ .chs{position:absolute;left:50%;top:50%;width:1920px;height:1080px;margin:-540px 0 0 -960px;overflow:hidden}
+#champ .chs{position:absolute;left:50%;top:50%;width:1920px;height:1080px;margin:-540px 0 0 -960px;overflow:hidden;transform:scale(var(--chz,1))}
 #champ canvas{position:absolute;left:0;top:0;width:1920px;height:1080px}
 #champ .ch-bar{position:absolute;left:0;right:0;height:132px;background:#000;z-index:3;transition:transform 1.4s cubic-bezier(.7,0,.2,1)}
 #champ .ch-bar.t{top:0}#champ .ch-bar.b{bottom:0}
@@ -227,7 +227,7 @@ a.hb{text-decoration:none;display:inline-block}
 
 /* showcase overlay: flyers and spotlight photos behind glass */
 #show{position:absolute;top:0;right:0;bottom:0;left:0;z-index:35;background:#05040a;overflow:hidden}
-#show .sc-box{position:absolute;left:50%;top:50%;width:1920px;height:1080px;margin:-540px 0 0 -960px}
+#show .sc-box{position:absolute;top:0;right:0;bottom:0;left:0}
 #show .sc-bg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;animation:scKen 26s ease-in-out infinite alternate}
 #show .sc-bg canvas{width:100%;height:100%;display:block;opacity:.55}
 #show .sc-dim{position:absolute;top:0;right:0;bottom:0;left:0;background:radial-gradient(70% 70% at 50% 50%,rgba(5,4,10,.25),rgba(5,4,10,.85))}
@@ -833,6 +833,8 @@ function build(){
 }
 function start(houses,label){
   if(!ROOT)build();
+  // stretch the storm to cover wider or taller screens edge to edge
+  var st=document.getElementById('stage');ROOT.style.setProperty('--chz',Math.max(st.offsetWidth/1920,st.offsetHeight/1080).toFixed(4));
   HOUSES=houses;ROOT.hidden=false;document.getElementById('chTop').innerHTML=label;
   var go=function(){SRC=IMG;if(!CL.length)buildStorm();play()};
   if(IMG.complete&&IMG.naturalWidth)go();else IMG.onload=go;
